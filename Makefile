@@ -6,7 +6,7 @@ CFLAGS = -g -Wall -Werror -std=c99
 LLVM_PATH = /usr/local/depot/llvm-4.0/bin/
 
 all: csim test-trans tracegen-ct
-	-tar -cvf handin.tar  csim.c trans.c key.txt
+	-tar -cvf handin.tar  csim.c trans.c
 
 csim: csim.c cachelab.c cachelab.h
 	$(CC) $(CFLAGS) -o csim csim.c cachelab.c -lm
