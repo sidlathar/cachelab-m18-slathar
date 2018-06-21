@@ -14,8 +14,8 @@ struct line //one line
 {
 	int valid;
 	int offset;
-	unsigned double hit_freq;
-	unsigned double tag;
+	unsigned long long hit_freq;
+	unsigned long long tag;
 	char *block;
 };
 
@@ -43,7 +43,7 @@ struct params
 	int evictions;
 };
 
-struct cache make_cache(double n_L, double n_S, double n_B)
+struct cache make_cache(long long n_L, long long n_S, long long n_B)
 {
 	struct cache new_cache;
 	struct set new_set;
@@ -75,8 +75,26 @@ struct cache make_cache(double n_L, double n_S, double n_B)
 	return new_cache;
 }
 
+int is_cache_full(struct cache cache_to_sim, unsigned long long set_index)
+{
+	int l; //line index
+	struct set check_set = cache_to_sim.sets[set_index];
+	struct line check_line;
 
-struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned double in_addr)
+	for(l = 0; l < E ; l++)
+	{
+		check_line = check_set.lines[l];
+
+		if((check_line.valid == -1)) //if tag is valid and matching
+		{
+			return 0; //not full
+		}
+	}
+	return 1; //full
+}
+
+
+struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long long in_addr)
 {
 	int E = init_params.E;
 	int S = init_params.S;
@@ -84,15 +102,16 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	int s = init_params.s;
 	int b = init_params.b;
 
-	unsigned double in_tag = in_addr >> (s + b);
+	unsigned long long in_tag = in_addr >> (s + b);
 
-	unsigned double set_index = (in_addr << (64 - s - b)) >> (64 - s);
+	unsigned long long set_index = (in_addr << (64 - s - b)) >> (64 - s);
 
 	struct set check_set = cache_to_sim.sets[set_index];
 	struct line check_line;
 
 	int l; //line index
-	int cache_full = 0; //?? assume its full?
+	int cache_full = is_cache_full(cache_to_sim, set_index); //inplement this
+	int old_hits = init_params.hits;
 
 	for(l = 0; l < E ; l++)
 	{
@@ -105,26 +124,15 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			check_line.hit_freq = check_line.hit_freq + 1;
 			return init_params;
 		}
-
-		else if((check_line.valid == -1) && (check_line.tag == in_tag))
-		{
-			//hit??
-			init_params.hits = init_params + 1;
-			check_line.hit_freq = check_line.hit_freq + 1;
-			return init_params;
-		}
-
-		else if(check_line.valid == -1 && cache_full)
-		{
-			//miss
-			cache_full = 0;
-			init_params.misses = init_params.misses + 1;
-		}
 	}
 
 	//no hit found!
+	if(old_hits == init_params.hits)
+	{
+		init_params.misses = init_params.misses + 1;
+	}
 
-	if(cache_full)
+	if(cache_full == 1)
 	{
 		//evict and write
 
