@@ -43,6 +43,14 @@ struct params
 	int evictions;
 };
 
+struct min_max_indices
+{
+	int min_freq;
+	int max_freq;
+	int min_index;
+	int max_index;
+};
+
 struct cache make_cache(long long n_L, long long n_S, long long n_B)
 {
 	struct cache new_cache;
@@ -85,13 +93,57 @@ int is_cache_full(struct cache cache_to_sim, unsigned long long set_index)
 	{
 		check_line = check_set.lines[l];
 
-		if((check_line.valid == -1)) //if tag is valid and matching
+		if((check_line.valid == -1)) //not valid means empty
 		{
-			return 0; //not full
+			return l; //not full, return index
 		}
 	}
-	return 1; //full
+	return -1; //full
 }
+
+struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long long set_index, struct min_max_indices m_m_i)
+{
+	int l; //line index
+	int min_freq;
+	int max_freq = 0;
+	int max_index = 0;
+	int min_index = 0;
+	struct set check_set = cache_to_sim.sets[set_index];
+	struct line check_line;
+
+	for(l = 0; l < E ; l++)
+	{
+		check_line = check_set.lines[l];
+
+		if(check_line.hit_freq >= max_freq)
+		{
+			max_freq = check_line.hit_freq;
+			max_index = l;
+		}
+	}
+
+	min_freq = max_freq;
+
+	for(l = 0; l < E ; l++)
+	{
+		check_line = check_set.lines[l];
+
+		if(check_line.hit_freq <= min_freq)
+		{
+			min_freq = check_line.hit_freq;
+			min_index = l;
+		}
+	}
+
+	m_m_i.max_index = max_index;
+	m_m_i.min_index = min_index;
+	m_m_i.max_freq = max_freq;
+	m_m_i.min_freq = min_freq;
+
+	return m_m_i;
+}
+
+
 
 
 struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long long in_addr)
@@ -108,10 +160,14 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 
 	struct set check_set = cache_to_sim.sets[set_index];
 	struct line check_line;
+	struct min_max_indices m_m_i;
 
 	int l; //line index
-	int cache_full = is_cache_full(cache_to_sim, set_index); //inplement this
+	int cache_full;
 	int old_hits = init_params.hits;
+	int least_recent;
+	int empty_line;
+
 
 	for(l = 0; l < E ; l++)
 	{
@@ -132,25 +188,27 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 		init_params.misses = init_params.misses + 1;
 	}
 
-	if(cache_full == 1)
+	cache_full = is_cache_full(cache_to_sim, set_index);
+
+	if(cache_full == -1)
 	{
 		//evict and write
-
-		int least_recent = check_lru(); // implement this
+		m_m_i = get_lru(cache_to_sim, set_index, m_m_i);
+		least_recent = m_m_i.min_index;
 
 		check_set.lines[least_recent].tag = in_tag;
-		check_set.lines[least_recent].hit_freq = 0;
+		check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
 		init_params.evictions = init_params.evictions + 1;
 	}
 	else
 	{
 		//we can write without evicting
 
-		int empty_line = check_empty(); // implement this
+		empty_line = cache_full; // implement this
 
 		check_set.lines[empty_line].tag = in_tag;
 		check_set.lines[empty_line].valid = 1;
-		check_set.lines[empty_line].hit_freq = 0;
+		check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
 		
 	}
 	return init_params;
