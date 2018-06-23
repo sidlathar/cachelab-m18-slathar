@@ -39,6 +39,8 @@ struct params
 	long hits;
 	long misses;
 	long evictions;
+
+	long bytes_evicted;
 };
 
 struct min_max_indices
@@ -163,7 +165,7 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 	return m_m_i;
 }
 
-struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long in_addr, int write)
+struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long in_addr, int write, int size)
 {
 	long E = init_params.E;
 	long s = init_params.s;
@@ -190,10 +192,10 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 
 		if((check_line.valid != -1) && (check_line.tag == in_tag)) //if tag is valid and matching its a hit
 		{
-			if((write == 1)) //set dirty bit
-			{
-				check_line.dirty_bit = 1;
-			}
+			// if(check_line.hit_freq >= 1 && (write == 1)) //set dirty bit
+			// {
+			// 	check_line.dirty_bit = 1;
+			// }
 			init_params.hits = init_params.hits + 1;
 			check_line.hit_freq = check_line.hit_freq + 1;
 			check_set.lines[l] = check_line;
@@ -217,7 +219,9 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 		if(write == 1)
 		{
 			check_set.lines[least_recent].dirty_bit = 1;
+			init_params.bytes_evicted = init_params.bytes_evicted + init_params.B;	
 		}
+		//init_params.bytes_evicted = init_params.bytes_evicted + init_params.B;
 		check_set.lines[least_recent].tag = in_tag;
 		check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
 		init_params.evictions = init_params.evictions + 1;
@@ -300,6 +304,7 @@ int main(int argc, char **argv)
 	init_params.hits = 0;
 	init_params.misses = 0;
 	init_params.evictions = 0;
+	init_params.bytes_evicted = 0;
 	init_params.S = pow(2.0, init_params.s);
 	init_params.B = pow(2.0, init_params.b);
 
@@ -318,11 +323,11 @@ int main(int argc, char **argv)
 			{
 				case 'L':
 					write = 0;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
+					init_params = sim_cache(cache_to_sim, init_params, in_addr, write, size);
 					break;
 				case 'S':
 					write = 1;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
+					init_params = sim_cache(cache_to_sim, init_params, in_addr, write, size);
 					break;
 				default:
 					break;
@@ -332,7 +337,7 @@ int main(int argc, char **argv)
 
 	dirty_bit_count = count_dirty_bits(cache_to_sim, init_params.E, init_params.S);
 
-	printSummary(init_params.hits, init_params.misses, init_params.evictions, dirty_bit_count, 0);
+	printSummary(init_params.hits, init_params.misses, init_params.evictions, init_params.B*dirty_bit_count, init_params.bytes_evicted);
 
 	free_mem(cache_to_sim, init_params.E, init_params.S);
 	fclose(trace);
