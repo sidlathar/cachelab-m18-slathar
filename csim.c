@@ -13,7 +13,7 @@ struct line //one line
 	int valid;
 	unsigned long hit_freq;
 	unsigned long tag;
-	long dirty_bit;
+	int dirty_bit;
 	char *block;
 };
 
@@ -77,8 +77,7 @@ struct cache make_cache(long n_E, long n_S)
 	struct set new_set;
 	struct line new_line;
 
-	long l;
-	long s;
+	long l,s;
 
 	//alloc memory for cache sets
 	new_cache.sets = (struct set*)malloc(sizeof(struct set)*n_S);
@@ -107,8 +106,8 @@ struct cache make_cache(long n_E, long n_S)
 long is_cache_full(struct cache cache_to_sim, unsigned long set_index, long E)
 {
 	long l; //line index
-	struct set check_set = cache_to_sim.sets[set_index];
-	struct line check_line;
+	struct set check_set = cache_to_sim.sets[set_index]; //set to check for capacity
+	struct line check_line; //line to check if empty
 
 	for(l = 0; l < E ; l++)
 	{
@@ -124,13 +123,13 @@ long is_cache_full(struct cache cache_to_sim, unsigned long set_index, long E)
 
 struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_index, struct min_max_indices m_m_i, long E)
 {
-	long l; //line index
-	long min_freq;
-	long max_freq = 0;
-	long max_index = 0;
-	long min_index = 0;
-	struct set check_set = cache_to_sim.sets[set_index];
-	struct line check_line;
+	long l = 0; //line index
+	long min_freq = 0; 	//min hit_freq of lines
+	long max_freq = 0; 	//max hit_freq of lines
+	long max_index = 0; //line index of max_freq
+	long min_index = 0; //line index of min_freq
+	struct set check_set = cache_to_sim.sets[set_index]; //set to check
+	struct line check_line; //line to check
 
 	for(l = 0; l < E ; l++)
 	{
@@ -143,7 +142,7 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 		}
 	}
 
-	min_freq = max_freq + 1;
+	min_freq = max_freq + 1; //set it higher than max for fair comparision
 
 	for(l = 0; l < E ; l++)
 	{
@@ -170,13 +169,13 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	long s = init_params.s;
 	long b = init_params.b;
 
-	unsigned long in_tag = in_addr >> (s + b);
+	unsigned long in_tag = in_addr >> (s + b); //tag to read/write at
 
-	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s);
+	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s); //set index to read/write at
 
-	struct set check_set = cache_to_sim.sets[set_index];
-	struct line check_line;
-	struct min_max_indices m_m_i;
+	struct set check_set = cache_to_sim.sets[set_index]; //set to wrte in
+	struct line check_line; 
+	struct min_max_indices m_m_i; //struct containing max/min indices
 
 	long l; //line index
 	long cache_full;
@@ -189,50 +188,51 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	{
 		check_line = check_set.lines[l];
 
-		if((check_line.valid != -1) && (check_line.tag == in_tag)) //if tag is valid and matching
+		if((check_line.valid != -1) && (check_line.tag == in_tag)) //if tag is valid and matching its a hit
 		{
-			//hit
-			init_params.hits = init_params.hits + 1;
-			check_line.hit_freq = check_line.hit_freq + 1;
-			if((check_line.hit_freq > 1) && (write == 1)) //set dirty bit
+			if((write == 1)) //set dirty bit
 			{
 				check_line.dirty_bit = 1;
 			}
+			init_params.hits = init_params.hits + 1;
+			check_line.hit_freq = check_line.hit_freq + 1;
 			check_set.lines[l] = check_line;
 			return init_params;
 		}
 	}
 
-	//no hit found!
+	//no hit found, update miss count
 	if(old_hits == init_params.hits)
 	{
 		init_params.misses = init_params.misses + 1;
 	}
 
-	cache_full = is_cache_full(cache_to_sim, set_index, E);
-	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E);
+	cache_full = is_cache_full(cache_to_sim, set_index, E); //holds empty line index
+	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E); //gets least recent used line index
 
 	if(cache_full == -1)
 	{
-		//evict and write
+		//evict
 		least_recent = m_m_i.min_index;
-		
-		check_set.lines[least_recent].dirty_bit = 1;
+		if(write == 1)
+		{
+			check_set.lines[least_recent].dirty_bit = 1;
+		}
 		check_set.lines[least_recent].tag = in_tag;
 		check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
 		init_params.evictions = init_params.evictions + 1;
 	}
 	else
 	{
-		//we can write without evicting
-		empty_line = cache_full; // implement this
-		
-		check_set.lines[empty_line].dirty_bit = 1;
-
+		//cache is empty
+		empty_line = cache_full;
+		if(write == 1)
+		{
+			check_set.lines[empty_line].dirty_bit = 1;
+		}
 		check_set.lines[empty_line].tag = in_tag;
 		check_set.lines[empty_line].valid = 1;
 		check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
-		
 	}
 	return init_params;
 }
@@ -241,7 +241,7 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 long count_dirty_bits(struct cache cache_to_sim, long E, long S)
 {
 	long l, s;
-	long dirty_bit_count;
+	int dirty_bit_count = 0;
 
 	struct set check_set;
 
@@ -266,7 +266,7 @@ int main(int argc, char **argv)
 	struct cache cache_to_sim;
 	char *trace_file_path;
 	int write;
-	long dirty_bit_count;
+	int dirty_bit_count = 0;
 
 	int opt;
 	//int report;
