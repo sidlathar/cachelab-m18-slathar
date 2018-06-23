@@ -10,7 +10,7 @@
 
 struct line //one line
 {
-	long valid;
+	int valid;
 	unsigned long hit_freq;
 	unsigned long tag;
 	long dirty_bit;
@@ -97,6 +97,7 @@ struct cache make_cache(long n_E, long n_S)
 			new_line.valid = -1;
 			new_line.tag = 0;
 			new_line.dirty_bit = 0;
+			new_line.hit_freq = 0;
 			new_set.lines[l] = new_line;
 		}
 	}
@@ -135,7 +136,7 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 	{
 		check_line = check_set.lines[l];
 
-		if(check_line.hit_freq >= max_freq)
+		if(check_line.hit_freq > max_freq)
 		{
 			max_freq = check_line.hit_freq;
 			max_index = l;
@@ -197,6 +198,7 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			{
 				check_line.dirty_bit = 1;
 			}
+			check_set.lines[l] = check_line;
 			return init_params;
 		}
 	}
@@ -208,12 +210,13 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	}
 
 	cache_full = is_cache_full(cache_to_sim, set_index, E);
+	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E);
 
 	if(cache_full == -1)
 	{
 		//evict and write
-		m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E);
 		least_recent = m_m_i.min_index;
+		
 		check_set.lines[least_recent].dirty_bit = 1;
 		check_set.lines[least_recent].tag = in_tag;
 		check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
@@ -233,6 +236,7 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	}
 	return init_params;
 }
+
 
 long count_dirty_bits(struct cache cache_to_sim, long E, long S)
 {
