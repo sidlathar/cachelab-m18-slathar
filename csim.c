@@ -133,7 +133,7 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 	struct set check_set = cache_to_sim.sets[set_index]; //set to check
 	struct line check_line; //line to check
 
-	for(l = 0; l < E ; l++)
+	for(l = 0; l < E ; l++) /* get max index and freq */
 	{
 		check_line = check_set.lines[l];
 
@@ -144,9 +144,9 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 		}
 	}
 
-	min_freq = max_freq + 1; //set it higher than max for fair comparision
+	min_freq = max_freq + 1; /* set it higher than max for fair comparision */
 
-	for(l = 0; l < E ; l++)
+	for(l = 0; l < E ; l++) /* get min index and freq */
 	{
 		check_line = check_set.lines[l];
 
@@ -165,28 +165,28 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 	return m_m_i;
 }
 
-struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long in_addr, int write, int size)
+struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long in_addr, int write)
 {
+	/* declare local variables */
 	long E = init_params.E;
 	long s = init_params.s;
 	long b = init_params.b;
-	int was_miss = 0;
-
-	unsigned long in_tag = in_addr >> (s + b); //tag to read/write at
-
-	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s); //set index to read/write at
-
-	struct set check_set = cache_to_sim.sets[set_index]; //set to wrte in
-	struct line check_line; 
-	struct min_max_indices m_m_i; //struct containing max/min indices
-
 	long l; //line index
 	long cache_full;
 	long old_hits = init_params.hits;
 	long least_recent;
 	long empty_line;
+	int was_miss = 0;
+	struct min_max_indices m_m_i; /* struct containing max/min indices */
 
+	/* get the tag and set index of set to look in */
+	unsigned long in_tag = in_addr >> (s + b); //tag to read/write at
+	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s); //set index to read/write at
 
+	struct set check_set = cache_to_sim.sets[set_index]; /* set to look in */
+	struct line check_line; 
+
+	/* loop to iterate through check_set to look for a match */
 	for(l = 0; l < E ; l++)
 	{
 		check_line = check_set.lines[l];
@@ -195,7 +195,7 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 		{
 			init_params.hits = init_params.hits + 1;
 			check_line.hit_freq = check_line.hit_freq + 1; //maybe need to change this to max
-			if(write == 1)
+			if(write == 1) /* if its a write then we set the dirty bit because data is modified */
 			{
 				if(check_line.dirty_bit == 0)
 				{
@@ -204,7 +204,6 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			}
 			check_set.lines[l] = check_line;
 			break;
-			//return init_params;
 		}
 	}
 
@@ -215,62 +214,68 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 		was_miss = 1;
 	}
 
-	cache_full = is_cache_full(cache_to_sim, set_index, E); //holds empty line index
-	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E); //gets least recent used line index
+	/* get index to empty line in check_set or -1 if check_set full*/
+	cache_full = is_cache_full(cache_to_sim, set_index, E);
 
+	/* gets least recent used line index */
+	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E);
+
+	/* case when its a LOAD(L) and MISS */
 	if(write  == 0 && was_miss == 1)
 	{
-		if(cache_full == -1) //full
+		if(cache_full == -1) /* set full, evict lru and set new tag; update lru info */
 		{
-			least_recent = m_m_i.min_index;
+			least_recent = m_m_i.min_index; /* least recent used line index in check_set */
 			if(check_set.lines[least_recent].dirty_bit == 1)
 			{
-				init_params.bytes_evicted += init_params.B;
+				init_params.bytes_evicted += init_params.B; /* updates bytes evicted count */
 			}
 			check_set.lines[least_recent].tag = in_tag;
 			check_set.lines[least_recent].valid = 1;
 			check_set.lines[least_recent].dirty_bit = 0;
-			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
-			init_params.evictions = init_params.evictions + 1;
+			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
+			init_params.evictions = init_params.evictions + 1; /* update evict count */
 		}
-		else //set not full
+		else /* set has a empty line, update tag and lru info */
 		{
-			empty_line = cache_full;
+			empty_line = cache_full; /* gets empty line index in set check_set*/
+
 			check_set.lines[empty_line].tag = in_tag;
 			check_set.lines[empty_line].valid = 1;
 			check_set.lines[empty_line].dirty_bit = 0;
-			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
+			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
 		}
 	}
-
+	/* case when STORE(S) and MISS */
 	else if(write == 1 && was_miss == 1)
 	{
-		if(cache_full == -1) //full
+		if(cache_full == -1) /* set full, evict lru and set new tag; update lru info */
 		{
-			least_recent = m_m_i.min_index;
+			least_recent = m_m_i.min_index; /* least recent used line index in check_set */
 			if(check_set.lines[least_recent].dirty_bit == 1)
 			{
-				init_params.bytes_evicted += init_params.B;
+				init_params.bytes_evicted += init_params.B; /* updates bytes evicted count */
 			}
 			check_set.lines[least_recent].tag = in_tag;
 			check_set.lines[least_recent].valid = 1;
 			check_set.lines[least_recent].dirty_bit = 1;
-			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
-			init_params.evictions = init_params.evictions + 1;
+			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
+			init_params.evictions = init_params.evictions + 1; /* update evict count */
 		}
-		else
+		else /* set has a empty line, update tag and lru info */
 		{
-			empty_line = cache_full;
+			empty_line = cache_full; /* gets empty line index in set check_set*/
+
 			check_set.lines[empty_line].tag = in_tag;
 			check_set.lines[empty_line].valid = 1;
 			check_set.lines[empty_line].dirty_bit = 1;
-			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
+			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
 		}
 	}
 	return init_params;
 }
 
-
+/* counts dirty bits in cache by iterating through the cache */
 long count_dirty_bits(struct cache cache_to_sim, long E, long S)
 {
 	long l, s;
@@ -295,6 +300,7 @@ long count_dirty_bits(struct cache cache_to_sim, long E, long S)
 
 int main(int argc, char **argv)
 {
+	/* declare arguments to pass to sim function */
 	struct params init_params;
 	struct cache cache_to_sim;
 	char *trace_file_path;
@@ -308,7 +314,7 @@ int main(int argc, char **argv)
 
 	FILE *trace;
 
-	while(-1 != (opt = getopt(argc, argv, "s:E:b:t:")))  //taken from rec slides s15
+	while(-1 != (opt = getopt(argc, argv, "s:E:b:t:")))  /* taken from rec slides s15 */
 	{
 		switch(opt)
 		{
@@ -330,6 +336,7 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* initialize parameters that hold cache info */
 	init_params.hits = 0;
 	init_params.misses = 0;
 	init_params.evictions = 0;
@@ -337,8 +344,10 @@ int main(int argc, char **argv)
 	init_params.S = pow(2.0, init_params.s);
 	init_params.B = pow(2.0, init_params.b);
 
+	/* our cache model */
 	cache_to_sim = make_cache(init_params.E, init_params.S);
 
+	/* trace variables */
 	char type;
 	int size;
 
@@ -352,11 +361,11 @@ int main(int argc, char **argv)
 			{
 				case 'L':
 					write = 0;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write, size);
+					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
 					break;
 				case 'S':
 					write = 1;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write, size);
+					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
 					break;
 				default:
 					break;
@@ -364,13 +373,16 @@ int main(int argc, char **argv)
 		}
 	}
 
-	dirty_bit_count = count_dirty_bits(cache_to_sim, init_params.E, init_params.S);
-
-	printSummary(init_params.hits, init_params.misses, init_params.evictions, init_params.B*dirty_bit_count, init_params.bytes_evicted);
-
-	free_mem(cache_to_sim, init_params.E, init_params.S);
 	fclose(trace);
 
+	/* end of simulation; count dirty bits */
+	dirty_bit_count = count_dirty_bits(cache_to_sim, init_params.E, init_params.S);
+
+	/* send info to printSummary */
+	printSummary(init_params.hits, init_params.misses, init_params.evictions, init_params.B*dirty_bit_count, init_params.bytes_evicted);
+
+	/* free memory */
+	free_mem(cache_to_sim, init_params.E, init_params.S);
 
 	return 0;
 }
