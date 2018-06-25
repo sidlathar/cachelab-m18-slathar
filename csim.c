@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include "cachelab.h"
 
-struct line //one line
+struct line /* one line */
 {
 	int valid;
 	unsigned long hit_freq;
@@ -17,17 +17,17 @@ struct line //one line
 	char *block;
 };
 
-struct set //lines make up a set
+struct set /* lines make up a set */
 {
 	struct line *lines;
 };
 
-struct cache //sets make up a cache
+struct cache /* sets make up a cache */
 {
 	struct set *sets;
 };
 
-struct params
+struct params /* struct to hold cache info */
 {
 	long E;
 	long S;
@@ -41,9 +41,10 @@ struct params
 	long evictions;
 
 	long bytes_evicted;
+	long dirty_bytes;
 };
 
-struct min_max_indices
+struct min_max_indices /* struct to hold lry info */
 {
 	long min_freq;
 	long max_freq;
@@ -54,7 +55,7 @@ struct min_max_indices
 
 void free_mem(struct cache cache_to_sim, long E, long S)
 {
-	int s;
+	int s; /* set index */
 
 	for(s = 0; s < S; s++)
 	{
@@ -79,20 +80,20 @@ struct cache make_cache(long n_E, long n_S)
 	struct set new_set;
 	struct line new_line;
 
-	long l,s;
+	long l,s; /* lind and set indices */
 
-	//alloc memory for cache sets
+	/* alloc memory for cache sets */
 	new_cache.sets = (struct set*)malloc(sizeof(struct set)*n_S);
 
 	for(s = 0; s < n_S; s++)
 	{
-		//alloc memory for cache lines
+		/* alloc memory for cache lines */
 		new_set.lines = (struct line*)malloc(sizeof(struct line)*n_E);
 
-		//set s-th set to have the above allocated lines
+		/* set s-th set to have the above allocated lines */
 		new_cache.sets[s] = new_set;
 
-		//initialize to defaults
+		/* initialize to defaults */
 		for(l = 0; l < n_E; l++)
 		{
 			new_line.valid = -1;
@@ -107,31 +108,31 @@ struct cache make_cache(long n_E, long n_S)
 
 long is_cache_full(struct cache cache_to_sim, unsigned long set_index, long E)
 {
-	long l; //line index
-	struct set check_set = cache_to_sim.sets[set_index]; //set to check for capacity
-	struct line check_line; //line to check if empty
+	long l; /* line index */
+	struct set check_set = cache_to_sim.sets[set_index]; /* set to check for capacity */
+	struct line check_line; /* line to check if empty */
 
 	for(l = 0; l < E ; l++)
 	{
 		check_line = check_set.lines[l];
 
-		if((check_line.valid == -1)) //not valid means empty
+		if((check_line.valid == -1)) /* not valid means empty */
 		{
-			return l; //not full, return index
+			return l; /* not full, return line index */
 		}
 	}
-	return -1; //full
+	return -1; /* full */
 }
 
 struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_index, struct min_max_indices m_m_i, long E)
 {
-	long l = 0; //line index
-	long min_freq = 0; 	//min hit_freq of lines
-	long max_freq = 0; 	//max hit_freq of lines
-	long max_index = 0; //line index of max_freq
-	long min_index = 0; //line index of min_freq
-	struct set check_set = cache_to_sim.sets[set_index]; //set to check
-	struct line check_line; //line to check
+	long l = 0; /* line index */
+	long min_freq = 0; 	/* min hit_freq of lines */
+	long max_freq = 0; 	/* max hit_freq of lines */
+	long max_index = 0; /* line index of max_freq */
+	long min_index = 0; /* line index of min_freq */
+	struct set check_set = cache_to_sim.sets[set_index]; /* set to check */
+	struct line check_line; /* line to check */
 
 	for(l = 0; l < E ; l++) /* get max index and freq */
 	{
@@ -165,23 +166,23 @@ struct min_max_indices get_lru(struct cache cache_to_sim, unsigned long set_inde
 	return m_m_i;
 }
 
-struct params sim_cache(struct cache cache_to_sim, struct params init_params, unsigned long in_addr, int write)
+struct params sim_cache(struct cache cache_to_sim, struct params cache_params, unsigned long in_addr, int write)
 {
 	/* declare local variables */
-	long E = init_params.E;
-	long s = init_params.s;
-	long b = init_params.b;
-	long l; //line index
+	long E = cache_params.E;
+	long s = cache_params.s;
+	long b = cache_params.b;
+	long l; /* line index */
 	long cache_full;
-	long old_hits = init_params.hits;
+	long old_hits = cache_params.hits;
 	long least_recent;
 	long empty_line;
 	int was_miss = 0;
 	struct min_max_indices m_m_i; /* struct containing max/min indices */
 
 	/* get the tag and set index of set to look in */
-	unsigned long in_tag = in_addr >> (s + b); //tag to read/write at
-	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s); //set index to read/write at
+	unsigned long in_tag = in_addr >> (s + b); 
+	unsigned long set_index = (in_addr << (64 - s - b)) >> (64 - s);
 
 	struct set check_set = cache_to_sim.sets[set_index]; /* set to look in */
 	struct line check_line; 
@@ -191,15 +192,16 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	{
 		check_line = check_set.lines[l];
 
-		if((check_line.valid != -1) && (check_line.tag == in_tag)) //if tag is valid and matching its a hit
+		if((check_line.valid != -1) && (check_line.tag == in_tag)) /* if tag is valid and matching its a hit */
 		{
-			init_params.hits = init_params.hits + 1;
-			check_line.hit_freq = check_line.hit_freq + 1; //maybe need to change this to max
+			cache_params.hits = cache_params.hits + 1;
+			check_line.hit_freq = check_line.hit_freq + 1; /* maybe need to change this to max */
 			if(write == 1) /* if its a write then we set the dirty bit because data is modified */
 			{
 				if(check_line.dirty_bit == 0)
 				{
 					check_line.dirty_bit = 1;
+					cache_params.dirty_bytes += cache_params.B;
 				}
 			}
 			check_set.lines[l] = check_line;
@@ -207,10 +209,10 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 		}
 	}
 
-	//no hit found, update miss count
-	if(old_hits == init_params.hits)
+	/* no hit found, update miss count */
+	if(old_hits == cache_params.hits)
 	{
-		init_params.misses = init_params.misses + 1;
+		cache_params.misses = cache_params.misses + 1;
 		was_miss = 1;
 	}
 
@@ -228,13 +230,14 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			least_recent = m_m_i.min_index; /* least recent used line index in check_set */
 			if(check_set.lines[least_recent].dirty_bit == 1)
 			{
-				init_params.bytes_evicted += init_params.B; /* updates bytes evicted count */
+				cache_params.bytes_evicted += cache_params.B; /* updates bytes evicted count */
+				cache_params.dirty_bytes -= cache_params.B;
 			}
 			check_set.lines[least_recent].tag = in_tag;
 			check_set.lines[least_recent].valid = 1;
 			check_set.lines[least_recent].dirty_bit = 0;
 			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
-			init_params.evictions = init_params.evictions + 1; /* update evict count */
+			cache_params.evictions = cache_params.evictions + 1; /* update evict count */
 		}
 		else /* set has a empty line, update tag and lru info */
 		{
@@ -254,13 +257,15 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			least_recent = m_m_i.min_index; /* least recent used line index in check_set */
 			if(check_set.lines[least_recent].dirty_bit == 1)
 			{
-				init_params.bytes_evicted += init_params.B; /* updates bytes evicted count */
+				cache_params.bytes_evicted += cache_params.B; /* updates bytes evicted count */
+				cache_params.dirty_bytes -= cache_params.B;
 			}
 			check_set.lines[least_recent].tag = in_tag;
 			check_set.lines[least_recent].valid = 1;
 			check_set.lines[least_recent].dirty_bit = 1;
+			cache_params.dirty_bytes += cache_params.B;
 			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
-			init_params.evictions = init_params.evictions + 1; /* update evict count */
+			cache_params.evictions = cache_params.evictions + 1; /* update evict count */
 		}
 		else /* set has a empty line, update tag and lru info */
 		{
@@ -269,63 +274,36 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 			check_set.lines[empty_line].tag = in_tag;
 			check_set.lines[empty_line].valid = 1;
 			check_set.lines[empty_line].dirty_bit = 1;
+			cache_params.dirty_bytes += cache_params.B;
 			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; /* make it most recent */
 		}
 	}
-	return init_params;
+	return cache_params;
 }
-
-/* counts dirty bits in cache by iterating through the cache */
-long count_dirty_bits(struct cache cache_to_sim, long E, long S)
-{
-	long l, s;
-	int dirty_bit_count = 0;
-
-	struct set check_set;
-
-	for(s = 0; s < S; s++)
-	{
-		check_set = cache_to_sim.sets[s];
-		for(l = 0; l < E; l++)
-		{
-			if(check_set.lines[l].dirty_bit == 1)
-			{
-				dirty_bit_count = dirty_bit_count + 1;
-			}
-		}
-	}
-	return dirty_bit_count;
-}
-
 
 int main(int argc, char **argv)
 {
 	/* declare arguments to pass to sim function */
-	struct params init_params;
+	struct params cache_params;
 	struct cache cache_to_sim;
 	char *trace_file_path;
 	int write;
-	int dirty_bit_count = 0;
 
+	/*return value of getopt */
 	int opt;
-	//int report;
-	
-	unsigned long in_addr;
-
-	FILE *trace;
 
 	while(-1 != (opt = getopt(argc, argv, "s:E:b:t:")))  /* taken from rec slides s15 */
 	{
 		switch(opt)
 		{
 			case 's':
-				init_params.s = atoi(optarg);
+				cache_params.s = atoi(optarg);
 				break;
 			case 'E':
-				init_params.E = atoi(optarg);
+				cache_params.E = atoi(optarg);
 				break;
 			case 'b':
-				init_params.b = atoi(optarg);
+				cache_params.b = atoi(optarg);
 				break;
 			case 't':
 				trace_file_path = optarg;
@@ -337,20 +315,24 @@ int main(int argc, char **argv)
 	}
 
 	/* initialize parameters that hold cache info */
-	init_params.hits = 0;
-	init_params.misses = 0;
-	init_params.evictions = 0;
-	init_params.bytes_evicted = 0;
-	init_params.S = pow(2.0, init_params.s);
-	init_params.B = pow(2.0, init_params.b);
+	cache_params.hits = 0;
+	cache_params.misses = 0;
+	cache_params.evictions = 0;
+	cache_params.bytes_evicted = 0;
+	cache_params.dirty_bytes = 0;
+	cache_params.S = pow(2.0, cache_params.s);
+	cache_params.B = pow(2.0, cache_params.b);
 
 	/* our cache model */
-	cache_to_sim = make_cache(init_params.E, init_params.S);
+	cache_to_sim = make_cache(cache_params.E, cache_params.S);
 
 	/* trace variables */
 	char type;
 	int size;
+	unsigned long in_addr;
+	FILE *trace;
 
+	/* start reading trace */
 	trace = fopen(trace_file_path, "r");
 	
 	if(trace != NULL)
@@ -361,11 +343,11 @@ int main(int argc, char **argv)
 			{
 				case 'L':
 					write = 0;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
+					cache_params = sim_cache(cache_to_sim, cache_params, in_addr, write);
 					break;
 				case 'S':
 					write = 1;
-					init_params = sim_cache(cache_to_sim, init_params, in_addr, write);
+					cache_params = sim_cache(cache_to_sim, cache_params, in_addr, write);
 					break;
 				default:
 					break;
@@ -374,15 +356,13 @@ int main(int argc, char **argv)
 	}
 
 	fclose(trace);
-
-	/* end of simulation; count dirty bits */
-	dirty_bit_count = count_dirty_bits(cache_to_sim, init_params.E, init_params.S);
+	/* finish reading trace */
 
 	/* send info to printSummary */
-	printSummary(init_params.hits, init_params.misses, init_params.evictions, init_params.B*dirty_bit_count, init_params.bytes_evicted);
+	printSummary(cache_params.hits, cache_params.misses, cache_params.evictions, cache_params.dirty_bytes, cache_params.bytes_evicted);
 
 	/* free memory */
-	free_mem(cache_to_sim, init_params.E, init_params.S);
+	free_mem(cache_to_sim, cache_params.E, cache_params.S);
 
 	return 0;
 }
