@@ -170,6 +170,7 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	long E = init_params.E;
 	long s = init_params.s;
 	long b = init_params.b;
+	int was_miss = 0;
 
 	unsigned long in_tag = in_addr >> (s + b); //tag to read/write at
 
@@ -192,14 +193,18 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 
 		if((check_line.valid != -1) && (check_line.tag == in_tag)) //if tag is valid and matching its a hit
 		{
-			// if(check_line.hit_freq >= 1 && (write == 1)) //set dirty bit
-			// {
-			// 	check_line.dirty_bit = 1;
-			// }
 			init_params.hits = init_params.hits + 1;
-			check_line.hit_freq = check_line.hit_freq + 1;
+			check_line.hit_freq = check_line.hit_freq + 1; //maybe need to change this to max
+			if(write == 1)
+			{
+				if(check_line.dirty_bit == 0)
+				{
+					check_line.dirty_bit = 1;
+				}
+			}
 			check_set.lines[l] = check_line;
-			return init_params;
+			break;
+			//return init_params;
 		}
 	}
 
@@ -207,36 +212,60 @@ struct params sim_cache(struct cache cache_to_sim, struct params init_params, un
 	if(old_hits == init_params.hits)
 	{
 		init_params.misses = init_params.misses + 1;
+		was_miss = 1;
 	}
 
 	cache_full = is_cache_full(cache_to_sim, set_index, E); //holds empty line index
 	m_m_i = get_lru(cache_to_sim, set_index, m_m_i, E); //gets least recent used line index
 
-	if(cache_full == -1)
+	if(write  == 0 && was_miss == 1)
 	{
-		//evict
-		least_recent = m_m_i.min_index;
-		if(write == 1)
+		if(cache_full == -1) //full
 		{
-			check_set.lines[least_recent].dirty_bit = 1;
-			init_params.bytes_evicted = init_params.bytes_evicted + init_params.B;	
+			least_recent = m_m_i.min_index;
+			if(check_set.lines[least_recent].dirty_bit == 1)
+			{
+				init_params.bytes_evicted += init_params.B;
+			}
+			check_set.lines[least_recent].tag = in_tag;
+			check_set.lines[least_recent].valid = 1;
+			check_set.lines[least_recent].dirty_bit = 0;
+			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
+			init_params.evictions = init_params.evictions + 1;
 		}
-		//init_params.bytes_evicted = init_params.bytes_evicted + init_params.B;
-		check_set.lines[least_recent].tag = in_tag;
-		check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
-		init_params.evictions = init_params.evictions + 1;
+		else //set not full
+		{
+			empty_line = cache_full;
+			check_set.lines[empty_line].tag = in_tag;
+			check_set.lines[empty_line].valid = 1;
+			check_set.lines[empty_line].dirty_bit = 0;
+			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
+		}
 	}
-	else
+
+	else if(write == 1 && was_miss == 1)
 	{
-		//cache is empty
-		empty_line = cache_full;
-		if(write == 1)
+		if(cache_full == -1) //full
 		{
-			check_set.lines[empty_line].dirty_bit = 1;
+			least_recent = m_m_i.min_index;
+			if(check_set.lines[least_recent].dirty_bit == 1)
+			{
+				init_params.bytes_evicted += init_params.B;
+			}
+			check_set.lines[least_recent].tag = in_tag;
+			check_set.lines[least_recent].valid = 1;
+			check_set.lines[least_recent].dirty_bit = 1;
+			check_set.lines[least_recent].hit_freq = m_m_i.max_freq + 1; //make it most recent
+			init_params.evictions = init_params.evictions + 1;
 		}
-		check_set.lines[empty_line].tag = in_tag;
-		check_set.lines[empty_line].valid = 1;
-		check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
+		else
+		{
+			empty_line = cache_full;
+			check_set.lines[empty_line].tag = in_tag;
+			check_set.lines[empty_line].valid = 1;
+			check_set.lines[empty_line].dirty_bit = 1;
+			check_set.lines[empty_line].hit_freq = m_m_i.max_freq + 1; //make it most recent
+		}
 	}
 	return init_params;
 }
