@@ -60,6 +60,8 @@ void transpose_submit(size_t M, size_t N, double A[N][M], double B[M][N],
     /* Reference http://csapp.cs.cmu.edu/public/waside/waside-blocking.pdf 
     * - the use of blocking */
     /* for 32 x 32 matrix */
+    int hit = -1;
+    int i;
     if(M == 32 && N == 32) 
     {
         block_size = 8; //4, 16, 32 give higher cycles
@@ -81,14 +83,20 @@ void transpose_submit(size_t M, size_t N, double A[N][M], double B[M][N],
                         }
                         else
                         {
-                            *tmp = A[col][row];
+                            hit += 1;
+                            tmp[hit] = A[col][row];
                             miss = row;
                         }
                     }
-                    if(row_block_bound == col_block_bound)
+                    if(hit >= -1)
                     {
-                        B[miss][miss] = *tmp;
+                        for(i = 0; i <= hit; i+=1)
+                        {
+                            B[miss - i][miss - i] = tmp[hit];
+                        }
+                        
                     }
+                    hit = -1;
                 }
             }
         }
